@@ -32,7 +32,7 @@ class Tests {
 
         val expr = graph.construct()
         for ((k, v) in expr.rules) {
-            println("$k ::= $v")
+            println("%20s ::= %s".format(k, v))
         }
 
         println(expr.parse(tokenize("a + b")))

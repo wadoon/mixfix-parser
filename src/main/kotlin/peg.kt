@@ -8,7 +8,7 @@ sealed class PExpr {
     abstract fun parse(ps: ParserState): Expr?
 }
 
-abstract class PExprMem : PExpr() {
+/*abstract class PExprMem : PExpr() {
     override fun parse(ps: ParserState): Expr? = when (this) {
         in ps.memNone[ps.pos] -> {
             val memErrs = ps.memNone[ps.pos].getValue(this)
@@ -32,16 +32,17 @@ abstract class PExprMem : PExpr() {
     }
 
     abstract fun parseImpl(ps: ParserState): Expr?
-}
+}*/
 
-data class Symbol(val text: String) : PExprMem() {
-    override fun parseImpl(ps: ParserState): Expr? = with(ps) {
+data class Symbol(val text: String) : PExpr() {
+    override fun parse(ps: ParserState): Expr? {
         val peek = ps.peek()
-        if (peek == null) {
+        return if (peek == null) {
             ps.addErr("EoF reached but I need to match $text")
             null
         } else {
             if (peek.text == text) {
+                ps.consume()
                 return Expr(text)
             } else {
                 ps.addErr("Expected $text but got ${peek.text}")
@@ -53,8 +54,8 @@ data class Symbol(val text: String) : PExprMem() {
     override fun toString() = "'$text'"
 }
 
-data class NonTerminal(val sym: String) : PExprMem() {
-    override fun parseImpl(ps: ParserState): Expr? = ps.invokeRule(sym)
+data class NonTerminal(val sym: String) : PExpr() {
+    override fun parse(ps: ParserState): Expr? = ps.invokeRule(sym)
     override fun toString() = "<$sym>"
 }
 
@@ -92,6 +93,8 @@ data class Optional(val sub: PExpr) : PExpr() {
 }
 
 data class Sequence(val sub: List<PExpr>) : PExpr() {
+    constructor(vararg sub: PExpr) : this(sub.toList())
+
     override fun parse(ps: ParserState): Expr? {
         for (pExpr in sub) {
             val r = pExpr.parse(ps)
@@ -105,6 +108,8 @@ data class Sequence(val sub: List<PExpr>) : PExpr() {
 }
 
 data class Choice(val sub: List<PExpr>) : PExpr() {
+    constructor(vararg sub: PExpr) : this(sub.toList())
+
     override fun parse(ps: ParserState): Expr? {
         for (pExpr in sub) {
             val pos = ps.pos
@@ -161,6 +166,8 @@ class ParserState(
     } catch (e: IndexOutOfBoundsException) {
         null
     }
+
+    fun consume() = ++pos
 }
 
 class PegParser(val rules: MutableMap<String, PExpr>, startName: String) {
@@ -183,7 +190,14 @@ class PegParser(val rules: MutableMap<String, PExpr>, startName: String) {
     }
 }
 
+object EOF : PExpr() {
+    override fun parse(ps: ParserState): Expr? {
+        return if (ps.pos >= ps.stream.size) Expr("EOF")
+        else null
+    }
+}
 
 //Helpers
 fun PExpr.repeat1(): PExpr = Repeat(this, 1)
 fun PExpr.repeat0(): PExpr = Repeat(this, 0)
+

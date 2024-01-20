@@ -1,5 +1,7 @@
 package io.github.wadoon.logic
 
+import java.util.TreeMap
+
 
 sealed class Part {
 
@@ -112,13 +114,13 @@ class GrammarGraph(val ops: MutableList<Operator> = arrayListOf()) {
 
         return try {
             Postfix(name, precedence, p).also { ops.add(it) }
-        } catch (e: IllegalArgumentException) {
+        } catch (e: RuntimeException) {
             try {
                 PrefixOperator(name, precedence, p).also { ops.add(it) }
-            } catch (e: IllegalArgumentException) {
+            } catch (e: RuntimeException) {
                 try {
                     Closed(name, precedence, p).also { ops.add(it) }
-                } catch (e: IllegalArgumentException) {
+                } catch (e: RuntimeException) {
                     MixfixOperator(name, precedence, p).also { ops.add(it) }
                 }
             }
@@ -128,7 +130,7 @@ class GrammarGraph(val ops: MutableList<Operator> = arrayListOf()) {
     fun construct(): PegParser {
         val buckets = ops.groupBy { it.precedence }
         val precs = buckets.keys.toSortedSet()
-        val rules = mutableMapOf<String, PExpr>()
+        val rules = TreeMap<String, PExpr>()
 
         val topLevel = NonTerminal("expr")
 
@@ -145,18 +147,9 @@ class GrammarGraph(val ops: MutableList<Operator> = arrayListOf()) {
                     NonTerminal("expr")
                 }
 
-            for (op in pops) {
-                /* val parts = op.schema.map {
-                    when (it) {
-                        is HolePart -> sub
-                        is NamePart -> Symbol(it.name)
-                    }
-                }*/
+            for (op in pops)
                 rules[op.name] = op.generate(topLevel, nextLevel)
-            }
         }
-
-        //val max = buckets().last()
         rules["expr"] = Choice(ops.sortedBy { it.precedence }.map { NonTerminal(it.name) })
         return PegParser(rules, "expr")
     }
